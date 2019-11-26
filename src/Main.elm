@@ -20,19 +20,8 @@ main =
 -- MODEL
 
 
-type Event
-    = OneTime { name : String, date : Date }
-    | LongTime { name : String, startDate : Date, endDate : Date }
-
-
-getName : Event -> String
-getName e =
-    case e of
-        OneTime data ->
-            data.name
-
-        LongTime data ->
-            data.name
+type alias Event =
+    { name : String, startDate : Date, endDate : Maybe Date }
 
 
 type alias Timeline =
@@ -51,9 +40,9 @@ type alias Model =
 init : Model
 init =
     Model
-        [ LongTime { name = "API v1", startDate = fromCalendarDate 2020 Jan 1, endDate = fromCalendarDate 2020 May 1 }
-        , OneTime { name = "EOL", date = fromCalendarDate 2020 May 1 }
-        , LongTime { name = "API v2", startDate = fromCalendarDate 2020 May 1, endDate = fromCalendarDate 2020 Dec 31 }
+        [ { name = "API v1", startDate = fromCalendarDate 2020 Jan 1, endDate = Just (fromCalendarDate 2020 May 1) }
+        , { name = "EOL", startDate = fromCalendarDate 2020 May 1, endDate = Nothing }
+        , { name = "API v2", startDate = fromCalendarDate 2020 May 1, endDate = Just (fromCalendarDate 2020 Dec 31) }
         ]
 
 
@@ -77,11 +66,8 @@ getTimelineDate events timelineDateType =
                 Nothing ->
                     fromCalendarDate 1991 Apr 19
 
-                Just (OneTime data) ->
-                    data.date
-
-                Just (LongTime data) ->
-                    data.startDate
+                Just event ->
+                    event.startDate
 
         ( _, End ) ->
             case
@@ -93,36 +79,34 @@ getTimelineDate events timelineDateType =
                 Nothing ->
                     fromCalendarDate 1991 Apr 20
 
-                Just (OneTime data) ->
-                    data.date
+                Just event ->
+                    case event.endDate of
+                        Nothing ->
+                            event.startDate
 
-                Just (LongTime data) ->
-                    data.endDate
+                        Just endDate ->
+                            endDate
 
 
 eventComparison : Event -> Event -> TimelineDateType -> Order
 eventComparison e1 e2 sortBy =
-    case ( e1, e2, sortBy ) of
-        ( OneTime data1, OneTime data2, _ ) ->
-            Date.compare data1.date data2.date
+    case sortBy of
+        Start ->
+            Date.compare e1.startDate e2.startDate
 
-        ( OneTime data1, LongTime data2, Start ) ->
-            Date.compare data1.date data2.startDate
+        End ->
+            case ( e1.endDate, e2.endDate ) of
+                ( Nothing, Nothing ) ->
+                    Date.compare e1.startDate e2.startDate
 
-        ( OneTime data1, LongTime data2, End ) ->
-            Date.compare data1.date data2.endDate
+                ( Just endDate, Nothing ) ->
+                    Date.compare endDate e2.startDate
 
-        ( LongTime data1, OneTime data2, Start ) ->
-            Date.compare data1.startDate data2.date
+                ( Nothing, Just endDate ) ->
+                    Date.compare e1.startDate endDate
 
-        ( LongTime data1, OneTime data2, End ) ->
-            Date.compare data1.endDate data2.date
-
-        ( LongTime data1, LongTime data2, Start ) ->
-            Date.compare data1.startDate data2.startDate
-
-        ( LongTime data1, LongTime data2, End ) ->
-            Date.compare data1.endDate data2.endDate
+                ( Just endDate, Just endDate2 ) ->
+                    Date.compare endDate endDate2
 
 
 eventComparisonAsc : Event -> Event -> Order
@@ -189,12 +173,12 @@ drawEventsList events =
 
 drawEventListItem : Event -> Html Msg
 drawEventListItem event =
-    case event of
-        OneTime data ->
-            li [] [ data.name ++ " " ++ toIsoString data.date |> text ]
+    case event.endDate of
+        Nothing ->
+            li [] [ event.name ++ " " ++ toIsoString event.startDate |> text ]
 
-        LongTime data ->
-            li [] [ data.name ++ " " ++ toIsoString data.startDate ++ " - " ++ toIsoString data.endDate |> text ]
+        Just endDate ->
+            li [] [ event.name ++ " " ++ toIsoString event.startDate ++ " - " ++ toIsoString endDate |> text ]
 
 
 drawTimeline : Timeline -> Html Msg
