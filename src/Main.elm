@@ -1,11 +1,11 @@
 module Main exposing (..)
 
 import Browser
-import DateFormat
+import Date exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onInput)
-import Time
+import Task exposing (..)
+import Time exposing (Month(..))
 
 
 
@@ -21,15 +21,25 @@ main =
 
 
 type Event
-    = OneTime { name : String, date : String }
-    | LongTime { name : String, startDate : String, endDate : String }
+    = OneTime { name : String, date : Date }
+    | LongTime { name : String, startDate : Date, endDate : Date }
+
+
+getName : Event -> String
+getName e =
+    case e of
+        OneTime data ->
+            data.name
+
+        LongTime data ->
+            data.name
 
 
 type alias Timeline =
-    { startDate : String, endDate : String }
+    { startDate : Date, endDate : Date }
 
 
-type TimelineDate
+type TimelineDateType
     = Start
     | End
 
@@ -41,9 +51,9 @@ type alias Model =
 init : Model
 init =
     Model
-        [ LongTime { name = "API v1", startDate = "01/01/2020", endDate = "01/05/2020" }
-        , OneTime { name = "EOL", date = "01/05/2020" }
-        , LongTime { name = "API v2", startDate = "01/05/2020", endDate = "31/12/2020" }
+        [ LongTime { name = "API v1", startDate = fromCalendarDate 2020 Jan 1, endDate = fromCalendarDate 2020 May 1 }
+        , OneTime { name = "EOL", date = fromCalendarDate 2020 May 1 }
+        , LongTime { name = "API v2", startDate = fromCalendarDate 2020 May 1, endDate = fromCalendarDate 2020 Dec 31 }
         ]
 
 
@@ -52,21 +62,80 @@ toTimeline events =
     { startDate = getTimelineDate events Start, endDate = getTimelineDate events End }
 
 
-getTimelineDate : List Event -> TimelineDate -> String
-getTimelineDate events timelineDate =
-    case timelineDate of
-        Start ->
-            -- events |> List.sortWith eventComparison |> List.maximum
-            "startTODO"
+getTimelineDate : List Event -> TimelineDateType -> Date
+getTimelineDate events timelineDateType =
+    case ( events, timelineDateType ) of
+        ( [], _ ) ->
+            fromCalendarDate 1991 Apr 17
 
-        End ->
-            "endTODO"
+        ( _, Start ) ->
+            case
+                events
+                    |> List.sortWith eventComparisonAsc
+                    |> List.head
+            of
+                Nothing ->
+                    fromCalendarDate 1991 Apr 19
+
+                Just (OneTime data) ->
+                    data.date
+
+                Just (LongTime data) ->
+                    data.startDate
+
+        ( _, End ) ->
+            case
+                events
+                    |> List.sortWith eventComparisonDesc
+                    |> List.reverse
+                    |> List.head
+            of
+                Nothing ->
+                    fromCalendarDate 1991 Apr 20
+
+                Just (OneTime data) ->
+                    data.date
+
+                Just (LongTime data) ->
+                    data.endDate
+
+
+eventComparison : Event -> Event -> TimelineDateType -> Order
+eventComparison e1 e2 sortBy =
+    case ( e1, e2, sortBy ) of
+        ( OneTime data1, OneTime data2, _ ) ->
+            Date.compare data1.date data2.date
+
+        ( OneTime data1, LongTime data2, Start ) ->
+            Date.compare data1.date data2.startDate
+
+        ( OneTime data1, LongTime data2, End ) ->
+            Date.compare data1.date data2.endDate
+
+        ( LongTime data1, OneTime data2, Start ) ->
+            Date.compare data1.startDate data2.date
+
+        ( LongTime data1, OneTime data2, End ) ->
+            Date.compare data1.endDate data2.date
+
+        ( LongTime data1, LongTime data2, Start ) ->
+            Date.compare data1.startDate data2.startDate
+
+        ( LongTime data1, LongTime data2, End ) ->
+            Date.compare data1.endDate data2.endDate
+
+
+eventComparisonAsc : Event -> Event -> Order
+eventComparisonAsc e1 e2 =
+    eventComparison e1 e2 Start
+
+
+eventComparisonDesc : Event -> Event -> Order
+eventComparisonDesc e1 e2 =
+    eventComparison e1 e2 End
 
 
 
--- eventComparison : Event -> Event -> Order
--- eventComparison e1 e2 =
---     GT
 -- UPDATE
 
 
@@ -122,12 +191,15 @@ drawEventListItem : Event -> Html Msg
 drawEventListItem event =
     case event of
         OneTime data ->
-            li [] [ text data.name ]
+            li [] [ data.name ++ " " ++ toIsoString data.date |> text ]
 
         LongTime data ->
-            li [] [ text data.name ]
+            li [] [ data.name ++ " " ++ toIsoString data.startDate ++ " - " ++ toIsoString data.endDate |> text ]
 
 
 drawTimeline : Timeline -> Html Msg
 drawTimeline timeline =
-    timeline.startDate ++ " " ++ timeline.endDate |> text
+    ol []
+        [ li [] [ "Start:" ++ toIsoString timeline.startDate |> text ]
+        , li [] [ "End:" ++ toIsoString timeline.endDate |> text ]
+        ]
