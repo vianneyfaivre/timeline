@@ -283,7 +283,7 @@ getEventType event currentDate =
                 None
 
         Just endDate ->
-            if Date.isBetween (Date.add Months 1 event.startDate) (Date.add Months -1 endDate) currentDate then
+            if eventIsBetween event.startDate endDate currentDate then
                 Between
 
             else if currentMonth == eventStartMonth && currentYear == eventStartYear then
@@ -294,3 +294,15 @@ getEventType event currentDate =
 
             else
                 None
+
+
+eventIsBetween : Date -> Date -> Date -> Bool
+eventIsBetween startDate endDate currentDate =
+    let
+        low =
+            Date.fromCalendarDate (Date.year startDate) (Date.month startDate) 1 |> Date.add Months 1
+
+        high =
+            Date.fromCalendarDate (Date.year endDate) (Date.month endDate) 1
+    in
+    Date.isBetween low high currentDate
