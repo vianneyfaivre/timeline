@@ -2,8 +2,10 @@ module Main exposing (..)
 
 import Browser
 import Date exposing (..)
+import Dict exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Set
 import Task exposing (..)
 import Time exposing (Month(..))
 
@@ -55,8 +57,12 @@ init : Model
 init =
     Model
         [ { name = "API v1", startDate = fromCalendarDate 2020 Jan 12, endDate = Just (fromCalendarDate 2020 May 9) }
-        , { name = "EOL", startDate = fromCalendarDate 2020 May 10, endDate = Nothing }
+        , { name = "EOL API v1", startDate = fromCalendarDate 2020 May 10, endDate = Nothing }
         , { name = "API v2", startDate = fromCalendarDate 2020 May 11, endDate = Just (fromCalendarDate 2021 Feb 25) }
+        , { name = "System A", startDate = fromCalendarDate 2021 Sep 3, endDate = Just (fromCalendarDate 2021 Dec 9) }
+        , { name = "EOL A", startDate = fromCalendarDate 2021 Dec 9, endDate = Nothing }
+        , { name = "System B", startDate = fromCalendarDate 2021 Oct 9, endDate = Just (fromCalendarDate 2022 Feb 25) }
+        , { name = "Migration A -> B", startDate = fromCalendarDate 2021 Nov 9, endDate = Nothing }
         ]
 
 
@@ -72,6 +78,7 @@ getTimelineDate : List Event -> TimelineDateType -> Date
 getTimelineDate events timelineDateType =
     case ( events, timelineDateType ) of
         ( [], _ ) ->
+            -- will happen only if no events are defined
             fromCalendarDate 1991 Apr 17
 
         ( _, TimelineStart ) ->
@@ -81,6 +88,7 @@ getTimelineDate events timelineDateType =
                     |> List.head
             of
                 Nothing ->
+                    -- will happen only if no events are defined
                     fromCalendarDate 1991 Apr 19
 
                 Just event ->
@@ -94,6 +102,7 @@ getTimelineDate events timelineDateType =
                     |> List.head
             of
                 Nothing ->
+                    -- will happen only if no events are defined
                     fromCalendarDate 1991 Apr 20
 
                 Just event ->
@@ -172,7 +181,7 @@ view model =
 
 drawInput : () -> Html Msg
 drawInput () =
-    textarea [] [ text "TODO: When the submit button has been clicked, read events from this input, and update the view" ]
+    textarea [] [ text "TODO: read events from here" ]
 
 
 drawEvents : List Event -> Html Msg
@@ -210,26 +219,55 @@ drawTimeline timeline =
     div []
         [ table []
             (List.concat
-                [ tr [] (cells |> List.map (drawTableHeader timeline) |> (++) [ td [] [ text "Event" ] ]) |> List.singleton
-                , List.map
-                    (drawTableCells cells timeline)
-                    timeline.events
+                [ -- Table Header Row - Years + Months
+                  [ tr [] (drawTableHeadersMonths timeline cells) ]
+
+                -- Table Data Rows - Events
+                , timeline.events |> List.map (drawTableData cells timeline)
                 ]
             )
         ]
 
 
-drawTableHeader : Timeline -> Int -> Html Msg
-drawTableHeader timeline monthNumber =
+drawTableHeadersMonths : Timeline -> List Int -> List (Html Msg)
+drawTableHeadersMonths timeline months =
+    months
+        |> List.map (drawTableHeaderMonths timeline)
+        |> (++) [ td [] [ text "Event \\ Month" ] ]
+
+
+drawTableHeaderMonths : Timeline -> Int -> Html Msg
+drawTableHeaderMonths timeline monthNumber =
+    let
+        years =
+            timeline.events
+                |> List.map (\event -> Date.year event.startDate)
+                |> Set.fromList
+                |> Set.toList
+
+        allYears =
+            years |> List.map (\year -> ( year, False )) |> Dict.fromList
+    in
     Date.add Months monthNumber timeline.startDate
-        |> format "MM-yyyy"
-        |> text
-        |> List.singleton
+        |> (\currentDate ->
+                case Dict.get (Date.year currentDate) allYears of
+                    Just True ->
+                        format "MMM" currentDate |> text |> List.singleton
+
+                    Just False ->
+                        [ Date.year currentDate |> String.fromInt |> text
+                        , br [] []
+                        , format "MMM" currentDate |> text
+                        ]
+
+                    _ ->
+                        "???" |> text |> List.singleton
+           )
         |> td []
 
 
-drawTableCells : List Int -> Timeline -> Event -> Html Msg
-drawTableCells cells timeline event =
+drawTableData : List Int -> Timeline -> Event -> Html Msg
+drawTableData cells timeline event =
     cells
         |> List.map (drawTableCell timeline event)
         |> (++) [ td [] [ text event.name ] ]
